@@ -932,17 +932,18 @@ footer { padding: 28px 0; border-top: 1px solid var(--dark12); }
       <div class="sim-step" id="ss9">
         <p class="sim-label">09 — Almost there</p>
         <h1 class="sim-title">Where do we<br><em>send the guide?</em></h1>
-        <p class="sim-sub">We'll review your answers and deliver your personalised strategic guide within 5 business days.</p>
+        <p class="sim-sub">Your personalised strategic insight page will load immediately — built around your brand type, challenge, and digital presence.</p>
         <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:28px;">
           <input class="sim-input" type="text" id="contactBrand" placeholder="Brand name" />
           <input class="sim-input" type="text" id="contactName" placeholder="Your name" />
           <input class="sim-input" type="email" id="contactEmail" placeholder="Your email address" />
-          <input class="sim-input" type="text" id="contactWebsite" placeholder="Website or Instagram URL (optional)" />
+          <input class="sim-input" type="text" id="contactWebsite" placeholder="Website URL (e.g. https://yourbrand.com)" />
+          <input class="sim-input" type="text" id="contactSocial" placeholder="Main social URL (e.g. https://instagram.com/yourbrand)" />
           <input class="sim-input" type="text" id="contactAdmired" placeholder="A brand you admire — in any category (optional)" />
         </div>
         <div class="sim-btn-row">
           <button class="sim-btn-next" id="snext9" onclick="submitAndReveal()">
-            See my proposal <svg class="arrow" width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            See my insight page <svg class="arrow" width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <button class="sim-btn-back" onclick="goStep(8)">Back</button>
         </div>
@@ -1396,7 +1397,7 @@ function updateBudget(v){
   S.budget=`€${b.val} ${b.sub}`;
 }
 
-/* ── SUBMIT + REVEAL ── */
+/* ── SUBMIT + REDIRECT ── */
 async function submitAndReveal() {
   const brand  = document.getElementById('contactBrand').value.trim();
   const name   = document.getElementById('contactName').value.trim();
@@ -1407,23 +1408,27 @@ async function submitAndReveal() {
     return;
   }
 
-  // Build full payload
+  const website = document.getElementById('contactWebsite').value.trim();
+  const social  = document.getElementById('contactSocial').value.trim();
+
+  // Build full payload for Make webhook
   const payload = {
-    brand_name:      brand,
-    contact_name:    name,
-    email:           email,
-    website:         document.getElementById('contactWebsite').value.trim(),
-    admired_brand:   document.getElementById('contactAdmired').value.trim(),
-    brand_type:      S.brandType,
-    challenge:       S.challenge.join(' | '),
-    services:        S.services.join(' | '),
-    budget:          S.budget,
-    active_channels: S.channels.join(' | '),
+    brand_name:        brand,
+    contact_name:      name,
+    email:             email,
+    website:           website,
+    social:            social,
+    admired_brand:     document.getElementById('contactAdmired').value.trim(),
+    brand_type:        S.brandType,
+    challenge:         S.challenge.join(' | '),
+    services:          S.services.join(' | '),
+    budget:            S.budget,
+    active_channels:   S.channels.join(' | '),
     brand_description: document.getElementById('brandDesc').value.trim(),
-    already_tried:   document.getElementById('alreadyTried').value.trim(),
-    ideal_customer:  document.getElementById('idealCustomer').value.trim(),
-    markets:         document.getElementById('markets').value.trim(),
-    submitted_at:    new Date().toISOString()
+    already_tried:     document.getElementById('alreadyTried').value.trim(),
+    ideal_customer:    document.getElementById('idealCustomer').value.trim(),
+    markets:           document.getElementById('markets').value.trim(),
+    submitted_at:      new Date().toISOString()
   };
 
   // Send to Make webhook (fire and forget — don't block the UI)
@@ -1431,35 +1436,37 @@ async function submitAndReveal() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
-  }).catch(() => {
-    // Silently fail — user experience is not blocked
+  }).catch(() => {});
+
+  // Build category key from brand type + first challenge
+  const BRAND_MAP = {
+    'Wine producer / winery / wine experience': 'wine',
+    'Food brand / producer':                    'food',
+    'Wine bar / small restaurant / gastronomia':'venue'
+  };
+  const CHALLENGE_MAP = {
+    'No clear brand identity or positioning':          'no-identity',
+    'Not reaching the right audience':                 'wrong-audience',
+    'Weak or inconsistent digital presence':           'weak-digital',
+    'Entering a new market or relaunching':            'new-market',
+    'Struggling to tell the brand story compellingly': 'storytelling',
+    'No structured content or editorial strategy':     'content'
+  };
+
+  const brandKey     = BRAND_MAP[S.brandType]          || 'wine';
+  const challengeKey = CHALLENGE_MAP[S.challenge[0]]   || 'no-identity';
+  const catKey       = `${brandKey}-${challengeKey}`;
+
+  // Build redirect URL
+  const params = new URLSearchParams({
+    cat:    catKey,
+    name:   name,
+    brand:  brand,
+    ...(website && { site:   website }),
+    ...(social  && { social: social  })
   });
 
-  // Reveal proposal immediately
-  revealProposal();
-}
-
-/* ── REVEAL PROPOSAL ── */
-function revealProposal(){
-  const heroEl=document.getElementById('simHero');
-  const propEl=document.getElementById('proposalSection');
-  const pageEl=document.getElementById('pageContent');
-
-  heroEl.querySelector('.sim-top').style.display='none';
-  propEl.style.display='block';
-  pageEl.style.display='block';
-
-  setTimeout(()=>propEl.scrollIntoView({behavior:'smooth',block:'start'}),100);
-
-  const textEl=document.getElementById('proposalText');
-  const optsEl=document.getElementById('proposalOptions');
-  const hintEl=document.getElementById('scrollHint');
-
-  const txt = matchCopy(S.brandType, S.challenge);
-  textEl.className='proposal-text';
-  textEl.textContent=txt;
-  optsEl.style.display='grid';
-  hintEl.style.display='block';
+  window.location.href = `insight.html?${params.toString()}`;
 }
 
 /* ── INIT ── */
